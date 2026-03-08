@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="manifest" href="manifest.json">
+    <title>VULCAN | HACKER DEFENSE</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root { --neon: #00f2ea; --bg: #0b0c10; --panel: rgba(15, 15, 15, 0.95); }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Courier New', monospace; overflow: hidden; touch-action: none; }
+        
+        /* Mod Menu Style */
+        #mod-menu {
+            position: absolute; top: 10px; right: 10px; width: 160px;
+            background: var(--panel); border: 1px solid var(--neon);
+            border-radius: 8px; padding: 10px; z-index: 100;
+        }
+        .menu-btn { 
+            width: 100%; background: #000; border: 1px solid var(--neon); color: var(--neon);
+            padding: 8px; margin-bottom: 5px; cursor: pointer; font-size: 10px; text-transform: uppercase;
+        }
+
+        /* HUD */
+        #hud { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+        .stat { background: rgba(0,0,0,0.8); border-left: 3px solid var(--neon); padding: 5px 15px; margin-bottom: 5px; font-size: 14px; color: var(--neon); }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="stat">SECURE DATA: $<span id="money">0</span></div>
+        <div class="stat">CORE INTEGRITY: <span id="hp">100</span>%</div>
+    </div>
+
+    <div id="mod-menu">
+        <div style="font-size:9px; text-align:center; margin-bottom:5px;">VULCAN TERMINAL v1.0</div>
+        <button class="menu-btn" onclick="upgrade('shield')">SIZE + ($200)</button>
+        <button class="menu-btn" onclick="upgrade('regen')">REGEN + ($500)</button>
+        <button class="menu-btn" style="color:red; border-color:red;" onclick="resetProgress()">WIPE DATA</button>
+    </div>
+
+    <script>
+        const KEY = "key67"; // Secure Key [cite: 2026-01-11]
+        let game = { money: 0, hp: 100, shieldSize: 1, active: true };
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Core (What you protect)
+        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshPhongMaterial({color: 0x00f2ea, wireframe: true}));
+        core.position.z = 5;
+        scene.add(core);
+
+        // Shield (Controlled by you)
+        const shield = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), new THREE.MeshPhongMaterial({color: 0x00f2ea, transparent: true, opacity: 0.4}));
+        scene.add(shield);
+
+        camera.position.set(0, 5, 12);
+        camera.lookAt(core.position);
+        scene.add(new THREE.PointLight(0x00f2ea, 2, 50));
+
+        let viruses = [];
+
+        function spawnVirus() {
+            const geo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+            const mat = new THREE.MeshBasicMaterial({color: 0xff0055, wireframe: true});
+            const v = new THREE.Mesh(geo, mat);
+            v.position.set((Math.random()-0.5)*15, (Math.random()-0.5)*15, -50);
+            scene.add(v);
+            viruses.push(v);
+        }
+
+        function animate() {
+            if (!game.active) return;
+            requestAnimationFrame(animate);
+            
+            core.rotation.y += 0.01;
+            shield.rotation.z += 0.05;
+
+            viruses.forEach((v, i) => {
+                v.position.z += 0.3;
+                v.rotation.x += 0.02;
+
+                // Shield Intercept
+                if (v.position.distanceTo(shield.position) < 1.5 * game.shieldSize) {
+                    scene.remove(v); viruses.splice(i, 1);
+                    game.money += 10;
+                    document.getElementById('money').innerText = game.money;
+                }
+
+                // Core Hit
+                if (v.position.distanceTo(core.position) < 1.5) {
+                    scene.remove(v); viruses.splice(i, 1);
+                    game.hp -= 10;
+                    document.getElementById('hp').innerText = game.hp;
+                    if (game.hp <= 0) { game.active = false; alert("CORE BREACHED!"); resetProgress(); }
+                }
+            });
+
+            if (Math.random() < 0.05) spawnVirus();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('touchmove', (e) => {
+            let x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+            let y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            shield.position.x = x * 8;
+            shield.position.y = y * 8;
+        });
+
+        function save() { localStorage.setItem('vulcan_def', JSON.stringify({m: game.money, s: game.shieldSize, k: KEY})); }
+        function load() {
+            const s = localStorage.getItem('vulcan_def');
+            if(s) {
+                const d = JSON.parse(s);
+                if(d.k === KEY) { game.money = d.m; game.shieldSize = d.s; document.getElementById('money').innerText = game.money; }
+            }
+        }
+        function resetProgress() { localStorage.removeItem('vulcan_def'); location.reload(); }
+        function upgrade(t) { if(t === 'shield' && game.money >= 200) { game.money -= 200; game.shieldSize += 0.2; shield.scale.set(game.shieldSize, game.shieldSize, game.shieldSize); save(); } }
+
+        load();
+        animate();
+        setInterval(save, 10000);
+    </script>
+</body>
+</html>
